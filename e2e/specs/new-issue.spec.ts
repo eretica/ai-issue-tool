@@ -95,14 +95,14 @@ test.describe('New Issue page', () => {
   })
 
   test('labels and assignee section can be expanded', async ({ page }) => {
-    // Fields should not be visible initially
-    await expect(page.getByLabel('ラベル')).not.toBeVisible()
+    // Assignee field should not be visible initially
+    await expect(page.getByLabel('アサイニー')).not.toBeVisible()
 
     // Expand the "ラベル・担当" section
     await page.getByRole('button', { name: 'ラベル・担当' }).click()
 
-    // Now fields should be visible
-    await expect(page.getByLabel('ラベル')).toBeVisible()
+    // Labels show contextual message (no repo selected yet)
+    await expect(page.getByText('リポジトリを選択するとラベルが表示されます')).toBeVisible()
     await expect(page.getByLabel('アサイニー')).toBeVisible()
   })
 

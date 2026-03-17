@@ -68,7 +68,7 @@ describe('DraftListPage', () => {
     renderWithRouter(DraftListPage)
     expect(await screen.findByText('ドラフト一覧')).toBeInTheDocument()
     expect(
-      screen.getByText('ドラフトがありません。新しいIssueを作成しましょう。'),
+      await screen.findByText('ドラフトがありません。新しいIssueを作成しましょう。'),
     ).toBeInTheDocument()
   })
 
@@ -91,7 +91,7 @@ describe('NewIssuePage', () => {
     expect(screen.getByText('ラベル・担当')).toBeInTheDocument()
   })
 
-  it('renders template buttons', async () => {
+  it('renders template buttons from API', async () => {
     renderWithRouter(NewIssuePage)
     expect(await screen.findByText('バグ報告')).toBeInTheDocument()
     expect(screen.getByText('機能要望')).toBeInTheDocument()
@@ -101,7 +101,7 @@ describe('NewIssuePage', () => {
   it('renders action buttons', async () => {
     renderWithRouter(NewIssuePage)
     expect(await screen.findByText('下書き保存')).toBeInTheDocument()
-    expect(screen.getByText('🤖 AIでIssueを生成')).toBeInTheDocument()
+    expect(screen.getByText('AIでIssueを生成')).toBeInTheDocument()
   })
 })
 
@@ -110,7 +110,7 @@ describe('PublishedListPage', () => {
     renderWithRouter(PublishedListPage)
     expect(await screen.findByText('公開済みIssue')).toBeInTheDocument()
     expect(
-      screen.getByText('公開済みのIssueはありません。'),
+      await screen.findByText('公開済みのIssueはありません。'),
     ).toBeInTheDocument()
   })
 
