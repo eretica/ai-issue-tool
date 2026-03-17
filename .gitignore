@@ -4,3 +4,7 @@ out
 .DS_Store
 .eslintcache
 *.log*
+data/
+playwright-report/
+test-results/
+e2e/.auth/
