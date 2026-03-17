@@ -1,38 +1,16 @@
 import { ipcMain } from 'electron'
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import type { AiGenerateInput, DraftCreateInput, DraftStatus, IpcChannels } from '@shared/types'
+import {
+  repositoryQueries,
+  labelQueries,
+  templateQueries,
+  draftQueries,
+  publishedIssueQueries,
+  settingsQueries,
+} from '../db/queries'
 import { createAiService } from '../services/ai-service'
 import { createGitHubService } from '../services/github-service'
-
-// Query function types (implemented by another agent in ../db/queries)
-export interface QueryFunctions {
-  // Repository
-  listRepositories(): unknown[]
-  createRepository(data: IpcChannels['repo:create']['args']): unknown
-  deleteRepository(id: number): void
-  setDefaultRepository(id: number): void
-
-  // Label
-  listLabelsByRepo(repositoryId: number): unknown[]
-  syncLabels(repositoryId: number, labels: unknown[]): unknown[]
-
-  // Template
-  listTemplates(): unknown[]
-  getTemplateBySlug(slug: string): unknown | null
-
-  // Draft
-  listDrafts(status?: DraftStatus): unknown[]
-  getDraftById(id: number): unknown | null
-  createDraft(data: DraftCreateInput): unknown
-  updateDraft(id: number, data: Partial<DraftCreateInput>): unknown
-  deleteDraft(id: number): void
-
-  // Published Issue
-  createPublishedIssue(data: unknown): unknown
-
-  // Settings
-  getSetting(key: string): string | null
-  setSetting(key: string, value: string): void
-}
 
 interface IpcError {
   error: true
@@ -47,21 +25,7 @@ function makeError(err: unknown): IpcError {
   return { error: true, message: String(err) }
 }
 
-/**
- * Try to import query functions from ../db/queries.
- * Returns null if the module is not yet available (being developed by another agent).
- */
-function tryLoadQueries(): QueryFunctions | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('../db/queries') as QueryFunctions
-  } catch {
-    return null
-  }
-}
-
-export function registerIpcHandlers(db?: unknown): void {
-  const queries = tryLoadQueries()
+export function registerIpcHandlers(db: BetterSQLite3Database): void {
   const aiService = createAiService()
   const githubService = createGitHubService()
 
@@ -69,8 +33,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('repo:list', async () => {
     try {
-      if (!queries) return []
-      return queries.listRepositories()
+      return repositoryQueries.list(db)
     } catch (err) {
       return makeError(err)
     }
@@ -78,8 +41,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('repo:create', async (_event, args: IpcChannels['repo:create']['args']) => {
     try {
-      if (!queries) throw new Error('Database not initialized')
-      return queries.createRepository(args)
+      return repositoryQueries.create(db, args)
     } catch (err) {
       return makeError(err)
     }
@@ -87,8 +49,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('repo:delete', async (_event, args: { id: number }) => {
     try {
-      if (!queries) throw new Error('Database not initialized')
-      queries.deleteRepository(args.id)
+      repositoryQueries.delete(db, args.id)
     } catch (err) {
       return makeError(err)
     }
@@ -96,8 +57,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('repo:setDefault', async (_event, args: { id: number }) => {
     try {
-      if (!queries) throw new Error('Database not initialized')
-      queries.setDefaultRepository(args.id)
+      repositoryQueries.setDefault(db, args.id)
     } catch (err) {
       return makeError(err)
     }
@@ -107,8 +67,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('label:listByRepo', async (_event, args: { repositoryId: number }) => {
     try {
-      if (!queries) return []
-      return queries.listLabelsByRepo(args.repositoryId)
+      return labelQueries.listByRepo(db, args.repositoryId)
     } catch (err) {
       return makeError(err)
     }
@@ -116,20 +75,23 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('label:sync', async (_event, args: { repositoryId: number }) => {
     try {
-      // Fetch labels from GitHub (mock) and sync to DB
-      const repo = queries
-        ? (queries.listRepositories().find((r: unknown) => {
-            const repo = r as { id: number; fullName: string }
-            return repo.id === args.repositoryId
-          }) as { fullName: string } | undefined)
-        : undefined
+      // Find the repository to get its fullName for the GitHub API call
+      const repos = repositoryQueries.list(db)
+      const repo = repos.find((r) => r.id === args.repositoryId)
       const repoName = repo?.fullName || 'owner/repo'
+
+      // Fetch labels from GitHub (mock)
       const githubLabels = await githubService.fetchLabels(repoName)
 
-      if (queries) {
-        return queries.syncLabels(args.repositoryId, githubLabels)
-      }
-      return githubLabels
+      // Sync to DB: map GitHub label format to the syncLabels input format
+      const labelsData = githubLabels.map((l) => ({
+        githubId: l.id,
+        name: l.name,
+        color: l.color,
+        description: l.description,
+      }))
+
+      return labelQueries.syncLabels(db, args.repositoryId, labelsData)
     } catch (err) {
       return makeError(err)
     }
@@ -139,8 +101,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('template:list', async () => {
     try {
-      if (!queries) return []
-      return queries.listTemplates()
+      return templateQueries.list(db)
     } catch (err) {
       return makeError(err)
     }
@@ -148,8 +109,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('template:getBySlug', async (_event, args: { slug: string }) => {
     try {
-      if (!queries) return null
-      return queries.getTemplateBySlug(args.slug)
+      return templateQueries.getBySlug(db, args.slug)
     } catch (err) {
       return makeError(err)
     }
@@ -159,8 +119,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('draft:list', async (_event, args: { status?: DraftStatus }) => {
     try {
-      if (!queries) return []
-      return queries.listDrafts(args?.status)
+      return draftQueries.list(db, args?.status)
     } catch (err) {
       return makeError(err)
     }
@@ -168,32 +127,26 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('draft:getById', async (_event, args: { id: number }) => {
     try {
-      if (!queries) return null
-      return queries.getDraftById(args.id)
+      return draftQueries.getById(db, args.id)
+    } catch (err) {
+      return makeError(err)
+    }
+  })
+
+  ipcMain.handle('draft:create', async (_event, args: DraftCreateInput) => {
+    try {
+      return draftQueries.create(db, args)
     } catch (err) {
       return makeError(err)
     }
   })
 
   ipcMain.handle(
-    'draft:create',
-    async (_event, args: DraftCreateInput) => {
-      try {
-        if (!queries) throw new Error('Database not initialized')
-        return queries.createDraft(args)
-      } catch (err) {
-        return makeError(err)
-      }
-    }
-  )
-
-  ipcMain.handle(
     'draft:update',
     async (_event, args: { id: number } & Partial<DraftCreateInput>) => {
       try {
-        if (!queries) throw new Error('Database not initialized')
         const { id, ...data } = args
-        return queries.updateDraft(id, data)
+        return draftQueries.update(db, id, data)
       } catch (err) {
         return makeError(err)
       }
@@ -202,8 +155,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('draft:delete', async (_event, args: { id: number }) => {
     try {
-      if (!queries) throw new Error('Database not initialized')
-      queries.deleteDraft(args.id)
+      draftQueries.delete(db, args.id)
     } catch (err) {
       return makeError(err)
     }
@@ -223,46 +175,45 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('github:publish', async (_event, args: { draftId: number }) => {
     try {
-      if (!queries) throw new Error('Database not initialized')
-
-      const draft = queries.getDraftById(args.draftId) as {
-        id: number
-        repositoryId: number
-        title: string
-        body: string
-        assignees: string[]
-      } | null
+      // 1. Get the draft
+      const draft = draftQueries.getById(db, args.draftId)
       if (!draft) throw new Error(`Draft ${args.draftId} not found`)
 
-      const repo = queries
-        .listRepositories()
-        .find((r: unknown) => (r as { id: number }).id === draft.repositoryId) as
-        | { id: number; fullName: string }
-        | undefined
+      // 2. Get the repository
+      const repos = repositoryQueries.list(db)
+      const repo = repos.find((r) => r.id === draft.repositoryId)
       if (!repo) throw new Error(`Repository for draft ${args.draftId} not found`)
 
-      const labels = queries
-        .listLabelsByRepo(draft.repositoryId)
-        .map((l: unknown) => (l as { name: string }).name)
+      // 3. Get labels for the draft
+      const draftLabels = labelQueries.listByRepo(db, draft.repositoryId)
+      const labelNames = draftLabels.map((l) => l.name)
 
+      // 4. Call GitHub service to publish
       const result = await githubService.publishIssue(
         repo.fullName,
         draft.title,
         draft.body,
-        labels,
-        draft.assignees || []
+        labelNames,
+        (draft.assignees as string[]) || []
       )
 
-      const publishedIssue = queries.createPublishedIssue({
+      // 5. Update draft status to published
+      draftQueries.publish(db, draft.id, {
+        githubIssueNumber: result.number,
+        githubIssueUrl: result.url,
+      })
+
+      // 6. Create a published_issues record
+      const publishedIssue = publishedIssueQueries.create(db, {
         draftId: draft.id,
         repositoryId: draft.repositoryId,
         githubIssueNumber: result.number,
         githubIssueUrl: result.url,
         title: draft.title,
         state: 'open',
-        publishedAt: new Date().toISOString()
       })
 
+      // 7. Return the published issue
       return publishedIssue
     } catch (err) {
       return makeError(err)
@@ -273,8 +224,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('settings:get', async (_event, args: { key: string }) => {
     try {
-      if (!queries) return null
-      return queries.getSetting(args.key)
+      return settingsQueries.get(db, args.key)
     } catch (err) {
       return makeError(err)
     }
@@ -282,8 +232,7 @@ export function registerIpcHandlers(db?: unknown): void {
 
   ipcMain.handle('settings:set', async (_event, args: { key: string; value: string }) => {
     try {
-      if (!queries) throw new Error('Database not initialized')
-      queries.setSetting(args.key, args.value)
+      settingsQueries.set(db, args.key, args.value)
     } catch (err) {
       return makeError(err)
     }

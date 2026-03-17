@@ -1,7 +1,9 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { createDatabase } from './db/index'
+import { registerIpcHandlers } from './ipc/handlers'
 
 function createWindow(): void {
   // Create the browser window.
@@ -49,8 +51,17 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // Initialize the database.
+  // In dev mode, use a `data/` directory relative to the project root.
+  // In production, use the app's user data path.
+  const dbPath = is.dev
+    ? join(app.getAppPath(), 'data', 'ai-issue-tool.db')
+    : join(app.getPath('userData'), 'ai-issue-tool.db')
+
+  const db = createDatabase(dbPath)
+
+  // Register all IPC handlers before the window loads
+  registerIpcHandlers(db)
 
   createWindow()
 
@@ -69,6 +80,3 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
