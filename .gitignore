@@ -6,5 +6,7 @@ out
 *.log*
 data/
 playwright-report/
+playwright-report-electron/
 test-results/
 e2e/.auth/
+*.tsbuildinfo
