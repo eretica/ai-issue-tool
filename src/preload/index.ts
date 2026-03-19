@@ -3,12 +3,17 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type {
   AiGenerateInput,
   AiGenerateResult,
+  AiPipelineInput,
+  DirectoryPickerResult,
   Draft,
   DraftCreateInput,
   DraftStatus,
+  KnowledgeStatus,
   Label,
+  PipelineStep,
   PublishedIssue,
   Repository,
+  ScanProgress,
   Template
 } from '../shared/types'
 
@@ -16,6 +21,7 @@ import type {
 const api = {
   repo: {
     list: (): Promise<Repository[]> => ipcRenderer.invoke('repo:list'),
+    getById: (id: number): Promise<Repository | null> => ipcRenderer.invoke('repo:getById', { id }),
     create: (
       data: Omit<Repository, 'id' | 'createdAt' | 'updatedAt'>
     ): Promise<Repository> => ipcRenderer.invoke('repo:create', data),
@@ -37,8 +43,8 @@ const api = {
   },
 
   draft: {
-    list: (status?: DraftStatus): Promise<Draft[]> =>
-      ipcRenderer.invoke('draft:list', { status }),
+    list: (repositoryId?: number, status?: DraftStatus): Promise<Draft[]> =>
+      ipcRenderer.invoke('draft:list', { repositoryId, status }),
     getById: (id: number): Promise<Draft | null> =>
       ipcRenderer.invoke('draft:getById', { id }),
     create: (data: DraftCreateInput): Promise<Draft> =>
@@ -51,7 +57,18 @@ const api = {
 
   ai: {
     generate: (input: AiGenerateInput): Promise<AiGenerateResult> =>
-      ipcRenderer.invoke('ai:generate', input)
+      ipcRenderer.invoke('ai:generate', input),
+    generateForDraft: (draftId: number, input: AiGenerateInput): Promise<{ started: boolean }> =>
+      ipcRenderer.invoke('ai:generateForDraft', { draftId, input }),
+    generatePipeline: (draftId: number, input: AiPipelineInput): Promise<{ started: boolean }> =>
+      ipcRenderer.invoke('ai:generatePipeline', { draftId, input })
+  },
+
+  pipeline: {
+    getSteps: (draftId: number): Promise<PipelineStep[]> =>
+      ipcRenderer.invoke('pipeline:getSteps', { draftId }),
+    cancel: (draftId: number): Promise<{ cancelled: boolean }> =>
+      ipcRenderer.invoke('pipeline:cancel', { draftId })
   },
 
   github: {
@@ -64,6 +81,25 @@ const api = {
       ipcRenderer.invoke('settings:get', { key }),
     set: (key: string, value: string): Promise<void> =>
       ipcRenderer.invoke('settings:set', { key, value })
+  },
+
+  knowledge: {
+    status: (repoId: number): Promise<KnowledgeStatus | null> =>
+      ipcRenderer.invoke('knowledge:status', { repoId }),
+    scan: (repoId: number): Promise<{ started: boolean }> =>
+      ipcRenderer.invoke('knowledge:scan', { repoId }),
+    scanProgress: (repoFullName: string): Promise<ScanProgress | null> =>
+      ipcRenderer.invoke('knowledge:scanProgress', { repoFullName }),
+  },
+
+  dialog: {
+    openDirectory: (): Promise<DirectoryPickerResult | null> =>
+      ipcRenderer.invoke('dialog:openDirectory')
+  },
+
+  db: {
+    dump: (): Promise<Record<string, unknown[]>> =>
+      ipcRenderer.invoke('db:dump')
   }
 }
 

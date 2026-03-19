@@ -8,6 +8,7 @@ export const repositories = sqliteTable('repositories', {
   name: text('name').notNull(),
   fullName: text('full_name').notNull().unique(),
   defaultBranch: text('default_branch').notNull().default('main'),
+  localPath: text('local_path'),
   isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -73,6 +74,9 @@ export const drafts = sqliteTable('drafts', {
   publishedAt: text('published_at'),
   aiModel: text('ai_model'),
   aiTokensUsed: integer('ai_tokens_used'),
+  pipelineCurrentStep: integer('pipeline_current_step'),
+  pipelineTotalSteps: integer('pipeline_total_steps').default(5),
+  generationStrategy: text('generation_strategy'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })
@@ -119,6 +123,27 @@ export const publishedIssues = sqliteTable('published_issues', {
   state: text('state').notNull().default('open'),
   lastSyncedAt: text('last_synced_at'),
   publishedAt: text('published_at').notNull(),
+})
+
+// ============ pipeline_steps ============
+
+export const pipelineSteps = sqliteTable('pipeline_steps', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  draftId: integer('draft_id')
+    .notNull()
+    .references(() => drafts.id, { onDelete: 'cascade' }),
+  stepNumber: integer('step_number').notNull(),
+  stepName: text('step_name').notNull(),
+  status: text('status').notNull().default('pending'),
+  modelUsed: text('model_used'),
+  inputSummary: text('input_summary', { mode: 'json' }).$type<Record<string, unknown>>(),
+  outputData: text('output_data', { mode: 'json' }).$type<Record<string, unknown>>(),
+  tokensUsed: integer('tokens_used'),
+  durationMs: integer('duration_ms'),
+  errorMessage: text('error_message'),
+  startedAt: text('started_at'),
+  completedAt: text('completed_at'),
+  createdAt: text('created_at').notNull(),
 })
 
 // ============ settings ============

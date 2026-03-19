@@ -1,12 +1,17 @@
 import type {
   AiGenerateInput,
   AiGenerateResult,
+  AiPipelineInput,
+  DirectoryPickerResult,
   Draft,
   DraftCreateInput,
   DraftStatus,
+  KnowledgeStatus,
   Label,
+  PipelineStep,
   PublishedIssue,
   Repository,
+  ScanProgress,
   Template,
 } from '@shared/types'
 import { mockStore } from './mock-store'
@@ -28,6 +33,11 @@ export const api = {
       const electronApi = getElectronApi()
       if (electronApi) return electronApi.repo.list()
       return mockStore.repo.list()
+    },
+    getById: async (id: number): Promise<Repository | null> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.repo.getById(id)
+      return mockStore.repo.getById(id)
     },
     create: async (
       data: Omit<Repository, 'id' | 'createdAt' | 'updatedAt'>
@@ -75,10 +85,10 @@ export const api = {
   },
 
   draft: {
-    list: async (status?: DraftStatus): Promise<Draft[]> => {
+    list: async (repositoryId?: number, status?: DraftStatus): Promise<Draft[]> => {
       const electronApi = getElectronApi()
-      if (electronApi) return electronApi.draft.list(status)
-      return mockStore.draft.list(status)
+      if (electronApi) return electronApi.draft.list(repositoryId, status)
+      return mockStore.draft.list(repositoryId, status)
     },
     getById: async (id: number): Promise<Draft | null> => {
       const electronApi = getElectronApi()
@@ -108,6 +118,49 @@ export const api = {
       if (electronApi) return electronApi.ai.generate(input)
       return mockStore.ai.generate(input)
     },
+    generateForDraft: async (draftId: number, input: AiGenerateInput): Promise<{ started: boolean }> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.ai.generateForDraft(draftId, input)
+      // Mock: generate synchronously and update draft
+      const result = await mockStore.ai.generate(input)
+      const draft = mockStore.draft.getById(draftId)
+      if (draft) {
+        mockStore.draft.update(draftId, {
+          title: result.title,
+          body: result.body,
+          status: 'ai_generated',
+        })
+      }
+      return { started: true }
+    },
+    generatePipeline: async (draftId: number, input: AiPipelineInput): Promise<{ started: boolean }> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.ai.generatePipeline(draftId, input)
+      // Mock: same as simple generation
+      const result = await mockStore.ai.generate(input as any)
+      const draft = mockStore.draft.getById(draftId)
+      if (draft) {
+        mockStore.draft.update(draftId, {
+          title: result.title,
+          body: result.body,
+          status: 'ai_generated',
+        })
+      }
+      return { started: true }
+    },
+  },
+
+  pipeline: {
+    getSteps: async (draftId: number): Promise<PipelineStep[]> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.pipeline.getSteps(draftId)
+      return []
+    },
+    cancel: async (draftId: number): Promise<{ cancelled: boolean }> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.pipeline.cancel(draftId)
+      return { cancelled: false }
+    },
   },
 
   github: {
@@ -116,9 +169,8 @@ export const api = {
       if (electronApi) return electronApi.github.publish(draftId)
       return mockStore.github.publish(draftId)
     },
-    list: async (): Promise<PublishedIssue[]> => {
-      // Published issues list - not in IPC yet, use mock store
-      return mockStore.github.list()
+    list: async (repositoryId?: number): Promise<PublishedIssue[]> => {
+      return mockStore.github.list(repositoryId)
     },
   },
 
@@ -132,6 +184,42 @@ export const api = {
       const electronApi = getElectronApi()
       if (electronApi) return electronApi.settings.set(key, value)
       mockStore.settings.set(key, value)
+    },
+  },
+
+  knowledge: {
+    status: async (repoId: number): Promise<KnowledgeStatus | null> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.knowledge.status(repoId)
+      return null
+    },
+    scan: async (repoId: number): Promise<{ started: boolean }> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.knowledge.scan(repoId)
+      return { started: false }
+    },
+    scanProgress: async (repoFullName: string): Promise<ScanProgress | null> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.knowledge.scanProgress(repoFullName)
+      return null
+    },
+  },
+
+  dialog: {
+    openDirectory: async (): Promise<DirectoryPickerResult | null> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.dialog.openDirectory()
+      // Browser mock: return null (manual input fallback)
+      return null
+    },
+  },
+
+  db: {
+    dump: async (): Promise<Record<string, unknown[]>> => {
+      const electronApi = getElectronApi()
+      if (electronApi) return electronApi.db.dump()
+      // Browser mock: return mock store data
+      return mockStore.db.dump()
     },
   },
 }

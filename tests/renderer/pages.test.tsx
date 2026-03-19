@@ -9,14 +9,51 @@ import {
   RouterProvider,
   Outlet,
 } from '@tanstack/react-router'
-import { DraftListPage } from '@renderer/pages/DraftListPage'
-import { NewIssuePage } from '@renderer/pages/NewIssuePage'
+import { KanbanPage } from '@renderer/pages/KanbanPage'
 import { SettingsPage } from '@renderer/pages/SettingsPage'
-import { PublishedListPage } from '@renderer/pages/PublishedListPage'
+import { RepoListPage } from '@renderer/pages/RepoListPage'
+
+function renderRepoScopedPage(
+  component: () => React.JSX.Element,
+  subPath = '/',
+) {
+  const rootRoute = createRootRoute({ component: Outlet })
+  const repoLayoutRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/repos/$repoId',
+    component: Outlet,
+  })
+
+  const childRoute = createRoute({
+    getParentRoute: () => repoLayoutRoute,
+    path: '/',
+    component,
+  })
+
+  const routeTree = rootRoute.addChildren([
+    repoLayoutRoute.addChildren([childRoute]),
+  ])
+  const initialPath = subPath === '/'
+    ? '/repos/1'
+    : `/repos/1${subPath}`
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: [initialPath] }),
+  })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  )
+}
 
 function renderWithRouter(
   component: () => React.JSX.Element,
-  initialPath = '/',
+  path = '/',
 ) {
   const rootRoute = createRootRoute({ component })
   const indexRoute = createRoute({
@@ -27,7 +64,7 @@ function renderWithRouter(
   const routeTree = rootRoute.addChildren([indexRoute])
   const router = createRouter({
     routeTree,
-    history: createMemoryHistory({ initialEntries: [initialPath] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
   })
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -63,73 +100,25 @@ function renderSettingsPage() {
   )
 }
 
-describe('DraftListPage', () => {
-  it('renders title and empty state', async () => {
-    renderWithRouter(DraftListPage)
-    expect(await screen.findByText('ドラフト一覧')).toBeInTheDocument()
-    expect(
-      await screen.findByText('ドラフトがありません。新しいIssueを作成しましょう。'),
-    ).toBeInTheDocument()
-  })
-
-  it('renders filter tabs', async () => {
-    renderWithRouter(DraftListPage)
-    expect(await screen.findByRole('tab', { name: 'すべて' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '下書き' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'AI生成済み' })).toBeInTheDocument()
+describe('RepoListPage', () => {
+  it('renders title', async () => {
+    renderWithRouter(RepoListPage)
+    expect(await screen.findByText('リポジトリ')).toBeInTheDocument()
   })
 })
 
-describe('NewIssuePage', () => {
-  it('renders form sections', async () => {
-    renderWithRouter(NewIssuePage)
-    expect(await screen.findByText('新規Issue作成')).toBeInTheDocument()
-    expect(screen.getByText('基本情報')).toBeInTheDocument()
-    expect(screen.getByText('デザイン情報')).toBeInTheDocument()
-    expect(screen.getByText('添付ファイル')).toBeInTheDocument()
-    expect(screen.getByText('関連情報')).toBeInTheDocument()
-    expect(screen.getByText('ラベル・担当')).toBeInTheDocument()
-  })
-
-  it('renders template buttons from API', async () => {
-    renderWithRouter(NewIssuePage)
-    expect(await screen.findByText('バグ報告')).toBeInTheDocument()
-    expect(screen.getByText('機能要望')).toBeInTheDocument()
-    expect(screen.getByText('改善提案')).toBeInTheDocument()
-  })
-
-  it('renders action buttons', async () => {
-    renderWithRouter(NewIssuePage)
-    expect(await screen.findByText('下書き保存')).toBeInTheDocument()
-    expect(screen.getByText('AIでIssueを生成')).toBeInTheDocument()
-  })
-})
-
-describe('PublishedListPage', () => {
-  it('renders title and empty state', async () => {
-    renderWithRouter(PublishedListPage)
-    expect(await screen.findByText('公開済みIssue')).toBeInTheDocument()
-    expect(
-      await screen.findByText('公開済みのIssueはありません。'),
-    ).toBeInTheDocument()
-  })
-
-  it('renders table headers', async () => {
-    renderWithRouter(PublishedListPage)
-    expect(await screen.findByText('タイトル')).toBeInTheDocument()
-    expect(screen.getByText('リポジトリ')).toBeInTheDocument()
-    expect(screen.getByText('Issue #')).toBeInTheDocument()
-    expect(screen.getByText('状態')).toBeInTheDocument()
-    expect(screen.getByText('公開日')).toBeInTheDocument()
+describe('KanbanPage', () => {
+  it('renders board title and new issue button', async () => {
+    renderRepoScopedPage(KanbanPage)
+    expect(await screen.findByText('ボード')).toBeInTheDocument()
+    expect(screen.getByText('+ 新規Issue作成')).toBeInTheDocument()
   })
 })
 
 describe('SettingsPage', () => {
-  it('renders section titles', async () => {
+  it('renders connection settings', async () => {
     renderSettingsPage()
     expect(await screen.findByText('設定')).toBeInTheDocument()
-    expect(screen.getByText('API設定')).toBeInTheDocument()
-    expect(screen.getByText('リポジトリ管理')).toBeInTheDocument()
-    expect(screen.getByText('テンプレート管理')).toBeInTheDocument()
+    expect(screen.getByText('外部ツール連携')).toBeInTheDocument()
   })
 })

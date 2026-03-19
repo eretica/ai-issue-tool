@@ -14,62 +14,55 @@ test.describe('Settings page', () => {
     await expect(section).toBeVisible()
   })
 
-  test('API設定 section is present', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'API設定' })).toBeVisible()
+  test('外部ツール連携 section is present', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: '外部ツール連携' })).toBeVisible()
   })
 
-  test('GitHub token input is present', async ({ page }) => {
-    const tokenInput = page.getByLabel('GitHub Personal Access Token')
-    await expect(tokenInput).toBeVisible()
-    await expect(tokenInput).toHaveAttribute('type', 'password')
+  test('GitHub mode selector is present', async ({ page }) => {
+    const githubMode = page.getByLabel('GitHub連携')
+    await expect(githubMode).toBeVisible()
   })
 
-  test('Claude API key input is present', async ({ page }) => {
-    const apiKeyInput = page.getByLabel('Claude API Key')
-    await expect(apiKeyInput).toBeVisible()
-    await expect(apiKeyInput).toHaveAttribute('type', 'password')
+  test('AI engine selector is present', async ({ page }) => {
+    const aiMode = page.getByLabel('AI生成エンジン')
+    await expect(aiMode).toBeVisible()
   })
 
-  test('リポジトリ管理 section is present', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'リポジトリ管理' })).toBeVisible()
-    await expect(
-      page.getByText('Issueを作成するリポジトリを管理します。')
-    ).toBeVisible()
+  test('can select GitHub mode', async ({ page }) => {
+    const githubMode = page.getByLabel('GitHub連携')
+    await githubMode.selectOption('gh-cli')
+    await expect(githubMode).toHaveValue('gh-cli')
+    await expect(page.getByText('gh CLIがインストール・認証済みである必要があります')).toBeVisible()
   })
 
-  test('リポジトリ管理 link is present', async ({ page }) => {
-    await expect(
-      page.getByRole('link', { name: 'リポジトリ管理を開く' })
-    ).toBeVisible()
+  test('can select AI engine', async ({ page }) => {
+    const aiMode = page.getByLabel('AI生成エンジン')
+    await aiMode.selectOption('claude-cli')
+    await expect(aiMode).toHaveValue('claude-cli')
+    await expect(page.getByText('Claude Codeがインストールされている必要があります')).toBeVisible()
   })
 
-  test('テンプレート管理 section is present', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'テンプレート管理' })).toBeVisible()
-    await expect(
-      page.getByText('Issueのテンプレートをカスタマイズします。')
-    ).toBeVisible()
+  test('save button saves connection settings', async ({ page }) => {
+    await page.getByLabel('GitHub連携').selectOption('gh-cli')
+    await page.getByRole('button', { name: '保存', exact: true }).click()
+    await expect(page.getByRole('status').getByText('保存しました', { exact: true })).toBeVisible()
   })
 
-  test('テンプレート一覧 link is present', async ({ page }) => {
-    await expect(
-      page.getByRole('link', { name: 'テンプレート一覧を開く' })
-    ).toBeVisible()
+  test('AI生成設定 section is present', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: 'AI生成設定' })).toBeVisible()
   })
 
-  test('can type in GitHub token field', async ({ page }) => {
-    const tokenInput = page.getByLabel('GitHub Personal Access Token')
-    await tokenInput.fill('ghp_test_token_12345')
-    await expect(tokenInput).toHaveValue('ghp_test_token_12345')
+  test('default generation mode radio buttons are present', async ({ page }) => {
+    const radioGroup = page.getByRole('radiogroup', { name: 'デフォルト生成モード' })
+    await expect(radioGroup).toBeVisible()
   })
 
-  test('can type in Claude API key field', async ({ page }) => {
-    const apiKeyInput = page.getByLabel('Claude API Key')
-    await apiKeyInput.fill('sk-ant-test_key_12345')
-    await expect(apiKeyInput).toHaveValue('sk-ant-test_key_12345')
+  test('save AI settings', async ({ page }) => {
+    await page.getByRole('button', { name: 'AI設定を保存' }).click()
+    await expect(page.getByRole('status').getByText('AI設定を保存しました')).toBeVisible()
   })
 
-  test('clicking リポジトリ管理を開く navigates to repositories page', async ({ page }) => {
-    await page.getByRole('link', { name: 'リポジトリ管理を開く' }).click()
-    await expect(page).toHaveURL('/settings/repositories')
+  test('version info is displayed', async ({ page }) => {
+    await expect(page.getByText('AI Issue Tool v1.0.0')).toBeVisible()
   })
 })

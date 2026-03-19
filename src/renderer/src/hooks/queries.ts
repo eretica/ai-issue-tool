@@ -7,13 +7,13 @@ import {
 import type {
   AiGenerateInput,
   AiGenerateResult,
+  AiPipelineInput,
+  DirectoryPickerResult,
   Draft,
   DraftCreateInput,
   DraftStatus,
-  Label,
   PublishedIssue,
   Repository,
-  Template,
 } from '@shared/types'
 import { api } from '../lib/api'
 
@@ -21,13 +21,17 @@ import { api } from '../lib/api'
 
 export const queryKeys = {
   repos: ['repositories'] as const,
+  repoById: (id: number) => ['repositories', id] as const,
   labels: (repoId: number) => ['labels', repoId] as const,
   templates: ['templates'] as const,
   templateBySlug: (slug: string) => ['templates', slug] as const,
-  drafts: (status?: DraftStatus) => ['drafts', status ?? 'all'] as const,
+  drafts: (repoId?: number, status?: DraftStatus) => ['drafts', repoId ?? 'all', status ?? 'all'] as const,
   draftById: (id: number) => ['drafts', 'detail', id] as const,
-  publishedIssues: ['publishedIssues'] as const,
+  publishedIssues: (repoId?: number) => ['publishedIssues', repoId ?? 'all'] as const,
   setting: (key: string) => ['settings', key] as const,
+  pipelineSteps: (draftId: number) => ['pipelineSteps', draftId] as const,
+  knowledgeStatus: (repoId: number) => ['knowledgeStatus', repoId] as const,
+  scanProgress: (repoFullName: string) => ['scanProgress', repoFullName] as const,
 }
 
 // ============ Repository ============
@@ -36,6 +40,14 @@ export function useRepositories() {
   return useQuery({
     queryKey: queryKeys.repos,
     queryFn: () => api.repo.list(),
+  })
+}
+
+export function useRepositoryById(id: number) {
+  return useQuery({
+    queryKey: queryKeys.repoById(id),
+    queryFn: () => api.repo.getById(id),
+    enabled: id > 0,
   })
 }
 
@@ -61,6 +73,14 @@ export function useSetDefaultRepository() {
   return useMutation({
     mutationFn: (id: number) => api.repo.setDefault(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.repos }),
+  })
+}
+
+// ============ Dialog ============
+
+export function useOpenDirectory(): UseMutationResult<DirectoryPickerResult | null, Error, void> {
+  return useMutation({
+    mutationFn: () => api.dialog.openDirectory(),
   })
 }
 
@@ -102,10 +122,10 @@ export function useTemplateBySlug(slug: string) {
 
 // ============ Draft ============
 
-export function useDrafts(status?: DraftStatus) {
+export function useDrafts(repositoryId?: number, status?: DraftStatus) {
   return useQuery({
-    queryKey: queryKeys.drafts(status),
-    queryFn: () => api.draft.list(status),
+    queryKey: queryKeys.drafts(repositoryId, status),
+    queryFn: () => api.draft.list(repositoryId, status),
   })
 }
 
@@ -161,6 +181,40 @@ export function useAiGenerate(): UseMutationResult<AiGenerateResult, Error, AiGe
   })
 }
 
+export function useAiGenerateForDraft() {
+  return useMutation({
+    mutationFn: ({ draftId, input }: { draftId: number; input: AiGenerateInput }) =>
+      api.ai.generateForDraft(draftId, input),
+  })
+}
+
+export function useAiGeneratePipeline() {
+  return useMutation({
+    mutationFn: ({ draftId, input }: { draftId: number; input: AiPipelineInput }) =>
+      api.ai.generatePipeline(draftId, input),
+  })
+}
+
+export function usePipelineSteps(draftId: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.pipelineSteps(draftId),
+    queryFn: () => api.pipeline.getSteps(draftId),
+    enabled: enabled && draftId > 0,
+    refetchInterval: enabled ? 2000 : false,
+  })
+}
+
+export function useCancelPipeline() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (draftId: number) => api.pipeline.cancel(draftId),
+    onSuccess: (_data, draftId) => {
+      qc.invalidateQueries({ queryKey: ['drafts'] })
+      qc.invalidateQueries({ queryKey: queryKeys.pipelineSteps(draftId) })
+    },
+  })
+}
+
 // ============ GitHub Publish ============
 
 export function usePublishDraft(): UseMutationResult<PublishedIssue, Error, number> {
@@ -169,15 +223,44 @@ export function usePublishDraft(): UseMutationResult<PublishedIssue, Error, numb
     mutationFn: (draftId: number) => api.github.publish(draftId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['drafts'] })
-      qc.invalidateQueries({ queryKey: queryKeys.publishedIssues })
+      qc.invalidateQueries({ queryKey: ['publishedIssues'] })
     },
   })
 }
 
-export function usePublishedIssues() {
+export function usePublishedIssues(repositoryId?: number) {
   return useQuery({
-    queryKey: queryKeys.publishedIssues,
-    queryFn: () => api.github.list(),
+    queryKey: queryKeys.publishedIssues(repositoryId),
+    queryFn: () => api.github.list(repositoryId),
+  })
+}
+
+// ============ Knowledge Base ============
+
+export function useKnowledgeStatus(repoId: number) {
+  return useQuery({
+    queryKey: queryKeys.knowledgeStatus(repoId),
+    queryFn: () => api.knowledge.status(repoId),
+    enabled: repoId > 0,
+  })
+}
+
+export function useKnowledgeScan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (repoId: number) => api.knowledge.scan(repoId),
+    onSuccess: (_data, repoId) => {
+      qc.invalidateQueries({ queryKey: queryKeys.knowledgeStatus(repoId) })
+    },
+  })
+}
+
+export function useScanProgress(repoFullName: string, enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.scanProgress(repoFullName),
+    queryFn: () => api.knowledge.scanProgress(repoFullName),
+    enabled: enabled && repoFullName.length > 0,
+    refetchInterval: enabled ? 2000 : false,
   })
 }
 

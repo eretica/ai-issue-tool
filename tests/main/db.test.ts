@@ -402,11 +402,11 @@ describe('draftQueries', () => {
       status: 'draft',
     })
 
-    const draftsOnly = draftQueries.list(db, 'draft')
+    const draftsOnly = draftQueries.list(db, undefined, 'draft')
     expect(draftsOnly).toHaveLength(2)
     expect(draftsOnly.every((d) => d.status === 'draft')).toBe(true)
 
-    const reviewedOnly = draftQueries.list(db, 'reviewed')
+    const reviewedOnly = draftQueries.list(db, undefined, 'reviewed')
     expect(reviewedOnly).toHaveLength(1)
   })
 

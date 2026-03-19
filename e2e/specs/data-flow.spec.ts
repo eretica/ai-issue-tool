@@ -2,8 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Draft creation and listing flow', () => {
   test('create a draft via form and see it in the list', async ({ page }) => {
-    // Navigate to new issue page
-    await page.goto('/new')
+    await page.goto('/repos/1/new')
 
     // Select a template
     await page.getByRole('button', { name: 'バグ報告' }).click()
@@ -12,116 +11,169 @@ test.describe('Draft creation and listing flow', () => {
       'true'
     )
 
-    // Fill in basic info
+    // Fill in basic info (no repo selector — repo is from URL)
     await page.getByLabel('タイトル').fill('テスト用バグ報告')
     await page.getByLabel('説明').fill('ログイン画面で500エラーが発生する')
     await page.getByLabel('対象ページ').fill('/login')
 
-    // Select a repository
-    await page.getByLabel('リポジトリ').selectOption({ index: 1 })
-
     // Save as draft
     await page.getByRole('button', { name: '下書き保存' }).click()
 
-    // Should navigate back to draft list
-    await page.waitForURL('/')
+    // Should navigate back to repo draft list
+    await page.waitForURL('/repos/1')
 
-    // Draft should appear in the list with its status badge
+    // Draft should appear in the list
     await expect(page.getByText('テスト用バグ報告')).toBeVisible()
-    // Verify the draft card contains a status badge (within the card, not the filter tab)
     const draftCard = page.getByRole('link', { name: /テスト用バグ報告/ })
     await expect(draftCard).toBeVisible()
   })
 
-  test('create draft via AI generation', async ({ page }) => {
-    await page.goto('/new')
+  test('create draft via AI generation (ai_doc mode)', async ({ page }) => {
+    await page.goto('/repos/1/new')
 
-    // Select template
     await page.getByRole('button', { name: '機能要望' }).click()
-
-    // Fill description (required for AI generation)
+    // ai_doc is default
+    await expect(page.getByRole('radio', { name: 'AI向けドキュメント' })).toBeChecked()
     await page.getByLabel('説明').fill('ダークモードを実装してほしい')
 
-    // Select a repository
-    await page.getByLabel('リポジトリ').selectOption({ index: 1 })
-
-    // Click AI generate
     await page.getByRole('button', { name: 'AIでIssueを生成' }).click()
 
-    // Should navigate to draft edit page
-    await page.waitForURL(/\/drafts\/\d+/)
+    // Should navigate back to draft list (background generation)
+    await page.waitForURL('/repos/1')
 
-    // Draft edit page should show AI-generated content
-    await expect(page.getByLabel('ドラフトタイトル')).toBeVisible()
-    await expect(page.getByLabel('Markdownエディタ')).toBeVisible()
+    // Toast should show
+    await expect(page.getByRole('status').getByText('AI生成を開始しました')).toBeVisible()
+
+    // Draft should appear in the list (mock completes instantly)
+    // Wait for the draft card badge to show AI生成済み (not the filter tab)
+    await expect(page.locator('.rounded-full:has-text("AI生成済み")').first()).toBeVisible({ timeout: 10000 })
+
+    // Click on the draft to verify content
+    await page.getByRole('link', { name: /ダークモード/ }).first().click()
+    await page.waitForURL(/\/repos\/1\/drafts\/\d+/)
+
+    const editor = page.getByLabel('Markdownエディタ')
+    await expect(editor).toBeVisible()
+    // AI doc should contain implementation plan structure
+    await expect(editor).toContainText('実装計画')
+  })
+
+  test('create draft via AI generation (human_doc mode)', async ({ page }) => {
+    await page.goto('/repos/1/new')
+
+    await page.getByRole('button', { name: '機能要望' }).click()
+    // Switch to human doc mode
+    await page.getByRole('radio', { name: '人間向けドキュメント' }).click()
+    await page.getByLabel('説明').fill('通知機能を追加してほしい')
+
+    await page.getByRole('button', { name: 'AIでIssueを生成' }).click()
+
+    // Should navigate back to draft list (background generation)
+    await page.waitForURL('/repos/1')
+
+    // Wait for the draft card badge to show AI生成済み
+    await expect(page.locator('.rounded-full:has-text("AI生成済み")').first()).toBeVisible({ timeout: 10000 })
+
+    // Click on the draft to verify content
+    await page.getByRole('link', { name: /通知機能/ }).first().click()
+    await page.waitForURL(/\/repos\/1\/drafts\/\d+/)
+
+    const editor = page.getByLabel('Markdownエディタ')
+    await expect(editor).toBeVisible()
+    // Human doc should contain overview structure
+    await expect(editor).toContainText('概要')
+    await expect(editor).toContainText('受け入れ条件')
   })
 })
 
 test.describe('Draft edit flow', () => {
   test.beforeEach(async ({ page }) => {
     // Create a draft first
-    await page.goto('/new')
+    await page.goto('/repos/1/new')
     await page.getByRole('button', { name: 'バグ報告' }).click()
     await page.getByLabel('タイトル').fill('編集テスト用ドラフト')
     await page.getByLabel('説明').fill('テスト説明文')
-    await page.getByLabel('リポジトリ').selectOption({ index: 1 })
     await page.getByRole('button', { name: '下書き保存' }).click()
-    await page.waitForURL('/')
+    await page.waitForURL('/repos/1')
 
     // Click on the draft to navigate to edit page
     await page.getByText('編集テスト用ドラフト').click()
-    await page.waitForURL(/\/drafts\/\d+/)
+    await page.waitForURL(/\/repos\/1\/drafts\/\d+/)
   })
 
   test('edit draft title and body', async ({ page }) => {
-    // Edit title
     const titleInput = page.getByLabel('ドラフトタイトル')
     await titleInput.clear()
     await titleInput.fill('更新されたタイトル')
     await expect(titleInput).toHaveValue('更新されたタイトル')
 
-    // Edit body
     const editor = page.getByLabel('Markdownエディタ')
     await editor.clear()
     await editor.fill('## 更新された内容')
     await expect(editor).toHaveValue('## 更新された内容')
 
-    // Preview should update
-    await expect(page.getByLabel('Markdownプレビュー')).toContainText('## 更新された内容')
+    await expect(page.getByLabel('Markdownプレビュー')).toContainText('更新された内容')
   })
 
   test('save draft shows success feedback', async ({ page }) => {
     await page.getByLabel('Markdownエディタ').fill('更新内容')
     await page.getByRole('button', { name: '保存' }).click()
-    await expect(page.getByText('保存しました')).toBeVisible()
+    await expect(page.getByRole('status').getByText('保存しました', { exact: true })).toBeVisible()
   })
 
-  test('delete draft navigates to home', async ({ page }) => {
+  test('character count is displayed', async ({ page }) => {
+    const editor = page.getByLabel('Markdownエディタ')
+    await editor.clear()
+    await editor.fill('テスト文字列')
+    // Character count should update
+    await expect(page.getByText(/6文字/)).toBeVisible()
+    await expect(page.getByText(/1行/)).toBeVisible()
+  })
+
+  test('copy button is visible', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'コピー' })).toBeVisible()
+  })
+
+  test('Cmd+S shortcut hint is visible', async ({ page }) => {
+    await expect(page.getByText('Cmd+S で保存')).toBeVisible()
+  })
+
+  test('markdown preview renders formatted content', async ({ page }) => {
+    const editor = page.getByLabel('Markdownエディタ')
+    await editor.clear()
+    await editor.fill('**太字テスト**')
+    const preview = page.getByLabel('Markdownプレビュー')
+    // Should render bold text (strong element)
+    await expect(preview.locator('strong')).toContainText('太字テスト')
+  })
+
+  test('delete draft navigates to repo page', async ({ page }) => {
     await page.getByRole('button', { name: '削除' }).click()
-    await page.waitForURL('/')
+    // Confirm dialog appears
+    await expect(page.getByText('ドラフトを削除しますか？')).toBeVisible()
+    await page.getByRole('button', { name: '削除する' }).click()
+    await page.waitForURL('/repos/1')
   })
 })
 
 test.describe('Publish flow', () => {
   test('publish draft and see it in published list', async ({ page }) => {
-    // Create a draft
-    await page.goto('/new')
+    await page.goto('/repos/1/new')
     await page.getByRole('button', { name: '改善提案' }).click()
     await page.getByLabel('タイトル').fill('公開テスト用Issue')
     await page.getByLabel('説明').fill('テスト公開フロー')
-    await page.getByLabel('リポジトリ').selectOption({ index: 1 })
     await page.getByRole('button', { name: '下書き保存' }).click()
-    await page.waitForURL('/')
+    await page.waitForURL('/repos/1')
 
-    // Navigate to draft edit
     await page.getByText('公開テスト用Issue').click()
-    await page.waitForURL(/\/drafts\/\d+/)
+    await page.waitForURL(/\/repos\/1\/drafts\/\d+/)
 
-    // Publish
     await page.getByRole('button', { name: '公開' }).click()
-    await page.waitForURL('/published')
+    // Confirm dialog appears
+    await expect(page.getByText('Issueを公開しますか？')).toBeVisible()
+    await page.getByRole('button', { name: '公開する' }).click()
+    await page.waitForURL('/repos/1/published')
 
-    // Should appear in published list
     await expect(page.getByText('公開テスト用Issue')).toBeVisible()
     await expect(page.getByText('open')).toBeVisible()
   })
@@ -129,63 +181,55 @@ test.describe('Publish flow', () => {
 
 test.describe('Filter tabs', () => {
   test('filter tabs switch and show correct drafts', async ({ page }) => {
-    // Create two drafts with different statuses
-    await page.goto('/new')
+    await page.goto('/repos/1/new')
     await page.getByRole('button', { name: 'バグ報告' }).click()
     await page.getByLabel('タイトル').fill('フィルタテスト1')
     await page.getByLabel('説明').fill('テスト')
-    await page.getByLabel('リポジトリ').selectOption({ index: 1 })
     await page.getByRole('button', { name: '下書き保存' }).click()
-    await page.waitForURL('/')
+    await page.waitForURL('/repos/1')
 
-    // Should show the draft
     await expect(page.getByText('フィルタテスト1')).toBeVisible()
 
-    // Click "下書き" filter tab
     await page.getByRole('tab', { name: '下書き' }).click()
     await expect(page.getByText('フィルタテスト1')).toBeVisible()
 
-    // Click "AI生成済み" filter tab - should be empty
     await page.getByRole('tab', { name: 'AI生成済み' }).click()
     await expect(page.getByText('ドラフトがありません')).toBeVisible()
 
-    // Click "すべて" to see all again
     await page.getByRole('tab', { name: 'すべて' }).click()
     await expect(page.getByText('フィルタテスト1')).toBeVisible()
   })
 })
 
 test.describe('Settings save flow', () => {
-  test('save API settings', async ({ page }) => {
+  test('save connection settings', async ({ page }) => {
     await page.goto('/settings')
-
-    // Fill in settings
-    await page.getByLabel('GitHub Personal Access Token').fill('ghp_test12345')
-    await page.getByLabel('Claude API Key').fill('sk-ant-test12345')
-
-    // Save
-    await page.getByRole('button', { name: '保存' }).click()
-
-    // Should show success message
-    await expect(page.getByText('保存しました')).toBeVisible()
+    await page.getByLabel('GitHub連携').selectOption('gh-cli')
+    await page.getByRole('button', { name: '保存', exact: true }).click()
+    await expect(page.getByRole('status').getByText('保存しました', { exact: true })).toBeVisible()
   })
 })
 
 test.describe('Label selection', () => {
-  test('labels appear when repository is selected', async ({ page }) => {
-    await page.goto('/new')
-
-    // Expand labels section
+  test('labels are visible for repo (from URL)', async ({ page }) => {
+    await page.goto('/repos/1/new')
     await page.getByRole('button', { name: 'ラベル・担当' }).click()
 
-    // Initially shows instruction text
-    await expect(page.getByText('リポジトリを選択するとラベルが表示されます')).toBeVisible()
-
-    // Select a repository
-    await page.getByLabel('リポジトリ').selectOption({ index: 1 })
-
-    // Labels should now appear as checkboxes
+    // Since repo 1 has labels in mock, they should be visible immediately
     await expect(page.getByText('bug')).toBeVisible()
     await expect(page.getByText('enhancement')).toBeVisible()
+  })
+})
+
+test.describe('Repository management', () => {
+  test('add repo manually and navigate to it', async ({ page }) => {
+    await page.goto('/')
+
+    // Fill manual add form
+    await page.getByPlaceholder('owner/name').fill('test-org/new-repo')
+    await page.getByRole('button', { name: '追加', exact: true }).click()
+
+    // New repo should appear
+    await expect(page.getByText('test-org/new-repo')).toBeVisible()
   })
 })

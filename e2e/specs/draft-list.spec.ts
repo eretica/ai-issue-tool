@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Draft list page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/repos/1')
   })
 
   test('page heading is displayed', async ({ page }) => {
@@ -37,15 +37,19 @@ test.describe('Draft list page', () => {
     ).toBeVisible()
   })
 
-  test('empty state has link to create new issue', async ({ page }) => {
-    const createLink = page.getByRole('link', { name: '新規Issue作成' })
+  test('header has link to create new issue', async ({ page }) => {
+    const createLink = page.getByRole('link', { name: '新規Issue作成' }).first()
     await expect(createLink).toBeVisible()
   })
 
-  test('clicking "新規Issue作成" link navigates to /new', async ({ page }) => {
-    await page.getByRole('link', { name: '新規Issue作成' }).click()
-    await expect(page).toHaveURL('/new')
+  test('clicking "新規Issue作成" link navigates to repo new page', async ({ page }) => {
+    await page.getByRole('link', { name: '新規Issue作成' }).first().click()
+    await page.waitForURL('/repos/1/new')
     await expect(page.getByRole('heading', { name: '新規Issue作成' })).toBeVisible()
+  })
+
+  test('search input is visible', async ({ page }) => {
+    await expect(page.getByLabel('ドラフト検索')).toBeVisible()
   })
 
   test('all filter tabs are clickable', async ({ page }) => {
@@ -54,7 +58,6 @@ test.describe('Draft list page', () => {
     for (const tabName of tabs) {
       const tab = page.getByRole('tab', { name: tabName })
       await tab.click()
-      // Verify the tab element is still present and clickable
       await expect(tab).toBeVisible()
     }
   })

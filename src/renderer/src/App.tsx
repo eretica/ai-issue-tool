@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { router } from './routes'
+import { ToastProvider } from './components/ui/Toast'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,7 +15,9 @@ const queryClient = new QueryClient({
 function App(): React.JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
     </QueryClientProvider>
   )
 }

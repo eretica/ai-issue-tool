@@ -59,6 +59,94 @@ export class MockGitHubService implements GitHubService {
   }
 }
 
-export function createGitHubService(): GitHubService {
+// ============ gh CLI Service ============
+
+import { execFile } from 'child_process'
+import { getShellEnv } from './shell-env'
+
+function runGh(args: string[], stdin?: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = execFile(
+      'gh',
+      args,
+      { timeout: 30000, maxBuffer: 1024 * 1024, env: getShellEnv() },
+      (err, stdout, stderr) => {
+        if (err) {
+          reject(new Error(`gh CLI error: ${err.message}${stderr ? ` | ${stderr.trim()}` : ''}`))
+        } else {
+          resolve(stdout.trim())
+        }
+      }
+    )
+    if (stdin) {
+      proc.stdin?.write(stdin)
+      proc.stdin?.end()
+    }
+  })
+}
+
+export class GhCliGitHubService implements GitHubService {
+  async publishIssue(
+    repo: string,
+    title: string,
+    body: string,
+    labels: string[],
+    assignees: string[]
+  ): Promise<{ number: number; url: string }> {
+    const args = [
+      'issue', 'create',
+      '--repo', repo,
+      '--title', title,
+      '--body', body,
+    ]
+
+    for (const label of labels) {
+      args.push('--label', label)
+    }
+    for (const assignee of assignees) {
+      args.push('--assignee', assignee)
+    }
+
+    // gh issue create returns the URL of the created issue
+    const url = await runGh(args)
+
+    // Extract issue number from URL: https://github.com/owner/repo/issues/123
+    const match = url.match(/\/issues\/(\d+)/)
+    const number = match ? parseInt(match[1], 10) : 0
+
+    return { number, url }
+  }
+
+  async fetchLabels(
+    repo: string
+  ): Promise<Array<{ id: number; name: string; color: string; description: string | null }>> {
+    const json = await runGh([
+      'label', 'list',
+      '--repo', repo,
+      '--json', 'name,color,description',
+      '--limit', '100',
+    ])
+
+    const labels = JSON.parse(json) as Array<{
+      name: string
+      color: string
+      description: string
+    }>
+
+    return labels.map((l, i) => ({
+      id: i + 1,
+      name: l.name,
+      color: l.color,
+      description: l.description || null,
+    }))
+  }
+}
+
+export type GitHubMode = 'mock' | 'gh-cli'
+
+export function createGitHubService(mode: GitHubMode = 'mock'): GitHubService {
+  if (mode === 'gh-cli') {
+    return new GhCliGitHubService()
+  }
   return new MockGitHubService()
 }

@@ -18,6 +18,7 @@ function createTables(db: BetterSQLite3Database): void {
       name TEXT NOT NULL,
       full_name TEXT NOT NULL UNIQUE,
       default_branch TEXT NOT NULL DEFAULT 'main',
+      local_path TEXT,
       is_default INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -115,11 +116,41 @@ function createTables(db: BetterSQLite3Database): void {
   `)
 
   db.run(sql`
+    CREATE TABLE IF NOT EXISTS pipeline_steps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      draft_id INTEGER NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+      step_number INTEGER NOT NULL,
+      step_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      model_used TEXT,
+      input_summary TEXT,
+      output_data TEXT,
+      tokens_used INTEGER,
+      duration_ms INTEGER,
+      error_message TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL
+    )
+  `)
+
+  db.run(sql`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     )
   `)
+
+  // Add pipeline columns to drafts (safe with IF NOT EXISTS pattern via pragma)
+  try {
+    db.run(sql`ALTER TABLE drafts ADD COLUMN pipeline_current_step INTEGER`)
+  } catch { /* column already exists */ }
+  try {
+    db.run(sql`ALTER TABLE drafts ADD COLUMN pipeline_total_steps INTEGER DEFAULT 5`)
+  } catch { /* column already exists */ }
+  try {
+    db.run(sql`ALTER TABLE drafts ADD COLUMN generation_strategy TEXT`)
+  } catch { /* column already exists */ }
 }
 
 /**

@@ -1,4 +1,6 @@
 import type {
+  AiGenerateInput,
+  AiGenerateResult,
   Draft,
   DraftCreateInput,
   DraftStatus,
@@ -27,6 +29,7 @@ const SEED_REPOSITORIES: Repository[] = [
     name: 'my-app',
     fullName: 'example/my-app',
     defaultBranch: 'main',
+    localPath: '/Users/example/projects/my-app',
     isDefault: true,
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2025-01-01T00:00:00Z',
@@ -37,6 +40,7 @@ const SEED_REPOSITORIES: Repository[] = [
     name: 'api-server',
     fullName: 'example/api-server',
     defaultBranch: 'main',
+    localPath: '/Users/example/projects/api-server',
     isDefault: false,
     createdAt: '2025-01-15T00:00:00Z',
     updatedAt: '2025-01-15T00:00:00Z',
@@ -133,6 +137,9 @@ export const mockStore = {
     list(): Repository[] {
       return [...state.repositories]
     },
+    getById(id: number): Repository | null {
+      return state.repositories.find((r) => r.id === id) ?? null
+    },
     create(data: Omit<Repository, 'id' | 'createdAt' | 'updatedAt'>): Repository {
       const repo: Repository = {
         ...data,
@@ -176,8 +183,11 @@ export const mockStore = {
 
   // Draft
   draft: {
-    list(status?: DraftStatus): Draft[] {
+    list(repositoryId?: number, status?: DraftStatus): Draft[] {
       let result = [...state.drafts]
+      if (repositoryId) {
+        result = result.filter((d) => d.repositoryId === repositoryId)
+      }
       if (status) {
         result = result.filter((d) => d.status === status)
       }
@@ -207,6 +217,9 @@ export const mockStore = {
         publishedAt: null,
         aiModel: null,
         aiTokensUsed: null,
+        pipelineCurrentStep: null,
+        pipelineTotalSteps: null,
+        generationStrategy: null,
         createdAt: now(),
         updatedAt: now(),
       }
@@ -243,19 +256,22 @@ export const mockStore = {
 
   // AI
   ai: {
-    generate(input: { templateSlug: string; description: string }): {
-      title: string
-      body: string
-      model: string
-      tokensUsed: number
-    } {
+    generate(input: AiGenerateInput): AiGenerateResult {
       const template = state.templates.find((t) => t.slug === input.templateSlug)
       const templateName = template?.name ?? input.templateSlug
+      const title = `[${templateName}] ${input.description.slice(0, 60)}`
+
+      let body: string
+      if (input.generationMode === 'ai_doc') {
+        const page = input.targetPage ? `- **対象ページ**: ${input.targetPage}` : ''
+        body = `## 実装計画\n\n### 目的\n${input.description}\n\n### コンテキスト\n${page}\n\n### 実装ステップ\n\n#### Phase 1: 調査\n- [ ] 対象コードの構造を確認\n- [ ] 既存の実装パターンを調査\n\n#### Phase 2: 実装\n- [ ] メインロジックの実装\n- [ ] テストコードの作成\n\n#### Phase 3: 検証\n- [ ] ユニットテスト通過\n- [ ] 手動確認\n\n### 受け入れ条件\n- [ ] 機能が説明通りに動作する\n- [ ] テストが追加されている\n- [ ] 既存テストが壊れていない\n- [ ] TypeScript型エラーがない`
+      } else {
+        body = `## 概要\n${input.description}\n\n### 受け入れ条件\n- [ ] 機能が説明通りに動作する\n- [ ] テストが追加されている\n- [ ] コードレビューが完了している`
+      }
+
       return {
-        title: `[${templateName}] ${input.description.slice(0, 60)}`,
-        body: template
-          ? template.bodyTemplate.replace('### 概要\n', `### 概要\n${input.description}\n`)
-          : `## ${templateName}\n\n${input.description}`,
+        title,
+        body,
         model: 'mock-browser',
         tokensUsed: 150,
       }
@@ -299,10 +315,12 @@ export const mockStore = {
       state.publishedIssues.push(published)
       return published
     },
-    list(): PublishedIssue[] {
-      return [...state.publishedIssues].sort((a, b) =>
-        b.publishedAt.localeCompare(a.publishedAt)
-      )
+    list(repositoryId?: number): PublishedIssue[] {
+      let result = [...state.publishedIssues]
+      if (repositoryId) {
+        result = result.filter((p) => p.repositoryId === repositoryId)
+      }
+      return result.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
     },
   },
 
@@ -313,6 +331,22 @@ export const mockStore = {
     },
     set(key: string, value: string): void {
       state.settings[key] = value
+    },
+  },
+
+  // DB Viewer
+  db: {
+    dump(): Record<string, unknown[]> {
+      return {
+        repositories: [...state.repositories],
+        labels: [...state.labels],
+        templates: [...state.templates],
+        drafts: [...state.drafts],
+        draftLabels: [],
+        attachments: [],
+        publishedIssues: [...state.publishedIssues],
+        settings: Object.entries(state.settings).map(([key, value]) => ({ key, value })),
+      }
     },
   },
 }

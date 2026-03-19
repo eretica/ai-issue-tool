@@ -1,13 +1,11 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, createHashHistory, Outlet } from '@tanstack/react-router'
 import { Sidebar } from './components/layout/Sidebar'
 import { MainContent } from './components/layout/MainContent'
-import { DraftListPage } from './pages/DraftListPage'
-import { NewIssuePage } from './pages/NewIssuePage'
-import { DraftEditPage } from './pages/DraftEditPage'
-import { PublishedListPage } from './pages/PublishedListPage'
+import { RepoListPage } from './pages/RepoListPage'
+import { KanbanPage } from './pages/KanbanPage'
+import { PipelineViewerPage } from './pages/PipelineViewerPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { RepositorySettingsPage } from './pages/RepositorySettingsPage'
-import { TemplateEditorPage } from './pages/TemplateEditorPage'
+import { DbViewerPage } from './pages/DbViewerPage'
 
 function RootLayout(): React.JSX.Element {
   return (
@@ -22,57 +20,66 @@ const rootRoute = createRootRoute({
   component: RootLayout,
 })
 
+// Home: repository list
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: DraftListPage,
+  component: RepoListPage,
 })
 
-const newIssueRoute = createRoute({
+// Repo-scoped layout (passes through to children)
+const repoLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/new',
-  component: NewIssuePage,
+  path: '/repos/$repoId',
+  component: () => <Outlet />,
 })
 
-const draftEditRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/drafts/$draftId',
-  component: DraftEditPage,
+// Repo index: kanban board
+const repoIndexRoute = createRoute({
+  getParentRoute: () => repoLayoutRoute,
+  path: '/',
+  component: KanbanPage,
 })
 
-const publishedRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/published',
-  component: PublishedListPage,
+// Pipeline conversation viewer
+const pipelineViewerRoute = createRoute({
+  getParentRoute: () => repoLayoutRoute,
+  path: '/pipeline/$draftId',
+  component: PipelineViewerPage,
 })
 
+// Global settings
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
   component: SettingsPage,
 })
 
-const repositoriesRoute = createRoute({
-  getParentRoute: () => settingsRoute,
-  path: '/repositories',
-  component: RepositorySettingsPage,
-})
-
-const templateEditorRoute = createRoute({
-  getParentRoute: () => settingsRoute,
-  path: '/templates/$templateId',
-  component: TemplateEditorPage,
+// DB Viewer (dev tool)
+const dbViewerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/db',
+  component: DbViewerPage,
 })
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  newIssueRoute,
-  draftEditRoute,
-  publishedRoute,
-  settingsRoute.addChildren([repositoriesRoute, templateEditorRoute]),
+  repoLayoutRoute.addChildren([
+    repoIndexRoute,
+    pipelineViewerRoute,
+  ]),
+  settingsRoute,
+  dbViewerRoute,
 ])
 
-export const router = createRouter({ routeTree })
+// Use hash history for Electron (file:// URLs don't support browser history API)
+const isElectron = typeof window !== 'undefined' && window.api !== undefined
+const hashHistory = createHashHistory()
+
+export const router = createRouter({
+  routeTree,
+  ...(isElectron ? { history: hashHistory } : {}),
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

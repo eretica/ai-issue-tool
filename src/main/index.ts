@@ -52,11 +52,14 @@ app.whenReady().then(() => {
   })
 
   // Initialize the database.
-  // In dev mode, use a `data/` directory relative to the project root.
-  // In production, use the app's user data path.
-  const dbPath = is.dev
-    ? join(app.getAppPath(), 'data', 'ai-issue-tool.db')
-    : join(app.getPath('userData'), 'ai-issue-tool.db')
+  // TEST_DB_PATH: used by Electron E2E tests with isolated temp DB
+  // Dev mode: use a `data/` directory relative to the project root.
+  // Production: use the app's user data path.
+  const dbPath = process.env.TEST_DB_PATH
+    ? process.env.TEST_DB_PATH
+    : is.dev
+      ? join(app.getAppPath(), 'data', 'ai-issue-tool.db')
+      : join(app.getPath('userData'), 'ai-issue-tool.db')
 
   const db = createDatabase(dbPath)
 

@@ -16,6 +16,23 @@
   --ring: oklch(0.708 0 0);
   --radius: 0.5rem;
   --sidebar-width: 240px;
+  --drawer-width: 60vw;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --muted: oklch(0.205 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --border: oklch(0.3 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.205 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --ring: oklch(0.556 0 0);
 }
 
 * {
@@ -34,4 +51,36 @@ body {
   display: flex;
   height: 100vh;
   width: 100vw;
+}
+
+/* Focus ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Selection style */
+::selection {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
 }

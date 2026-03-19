@@ -8,9 +8,10 @@ import {
   draftLabels,
   attachments,
   publishedIssues,
+  pipelineSteps,
   settings,
 } from './schema'
-import type { DraftStatus } from '../../shared/types'
+import type { DraftStatus, PipelineStepStatus } from '../../shared/types'
 
 // ============ Utility ============
 
@@ -25,6 +26,10 @@ export const repositoryQueries = {
     return db.select().from(repositories).all()
   },
 
+  getById(db: BetterSQLite3Database, id: number) {
+    return db.select().from(repositories).where(eq(repositories.id, id)).get() ?? null
+  },
+
   create(
     db: BetterSQLite3Database,
     data: {
@@ -32,6 +37,7 @@ export const repositoryQueries = {
       name: string
       fullName: string
       defaultBranch?: string
+      localPath?: string | null
       isDefault?: boolean
     }
   ) {
@@ -43,6 +49,7 @@ export const repositoryQueries = {
         name: data.name,
         fullName: data.fullName,
         defaultBranch: data.defaultBranch ?? 'main',
+        localPath: data.localPath ?? null,
         isDefault: data.isDefault ?? false,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -165,12 +172,16 @@ export const templateQueries = {
 // ============ Draft Queries ============
 
 export const draftQueries = {
-  list(db: BetterSQLite3Database, status?: DraftStatus) {
-    if (status) {
+  list(db: BetterSQLite3Database, repositoryId?: number, status?: DraftStatus) {
+    const conditions = []
+    if (repositoryId) conditions.push(eq(drafts.repositoryId, repositoryId))
+    if (status) conditions.push(eq(drafts.status, status))
+
+    if (conditions.length > 0) {
       return db
         .select()
         .from(drafts)
-        .where(eq(drafts.status, status))
+        .where(conditions.length === 1 ? conditions[0] : and(...conditions))
         .orderBy(desc(drafts.updatedAt))
         .all()
     }
@@ -257,6 +268,9 @@ export const draftQueries = {
       publishedAt: string | null
       aiModel: string | null
       aiTokensUsed: number | null
+      pipelineCurrentStep: number | null
+      pipelineTotalSteps: number | null
+      generationStrategy: string | null
     }>
   ) {
     db.update(drafts)
@@ -340,7 +354,15 @@ export const attachmentQueries = {
 // ============ Published Issue Queries ============
 
 export const publishedIssueQueries = {
-  list(db: BetterSQLite3Database) {
+  list(db: BetterSQLite3Database, repositoryId?: number) {
+    if (repositoryId) {
+      return db
+        .select()
+        .from(publishedIssues)
+        .where(eq(publishedIssues.repositoryId, repositoryId))
+        .orderBy(desc(publishedIssues.publishedAt))
+        .all()
+    }
     return db
       .select()
       .from(publishedIssues)
@@ -372,6 +394,137 @@ export const publishedIssueQueries = {
       })
       .returning()
       .get()
+  },
+}
+
+// ============ Pipeline Step Queries ============
+
+export const pipelineStepQueries = {
+  listByDraft(db: BetterSQLite3Database, draftId: number) {
+    return db
+      .select()
+      .from(pipelineSteps)
+      .where(eq(pipelineSteps.draftId, draftId))
+      .orderBy(pipelineSteps.stepNumber)
+      .all()
+  },
+
+  create(
+    db: BetterSQLite3Database,
+    data: {
+      draftId: number
+      stepNumber: number
+      stepName: string
+    }
+  ) {
+    return db
+      .insert(pipelineSteps)
+      .values({
+        draftId: data.draftId,
+        stepNumber: data.stepNumber,
+        stepName: data.stepName,
+        status: 'pending',
+        createdAt: now(),
+      })
+      .returning()
+      .get()
+  },
+
+  updateStatus(
+    db: BetterSQLite3Database,
+    draftId: number,
+    stepNumber: number,
+    status: PipelineStepStatus
+  ) {
+    const updates: Record<string, unknown> = { status }
+    if (status === 'running') {
+      updates.startedAt = now()
+    }
+
+    db.update(pipelineSteps)
+      .set(updates as any)
+      .where(
+        and(
+          eq(pipelineSteps.draftId, draftId),
+          eq(pipelineSteps.stepNumber, stepNumber)
+        )
+      )
+      .run()
+  },
+
+  updateInputSummary(
+    db: BetterSQLite3Database,
+    draftId: number,
+    stepNumber: number,
+    inputSummary: Record<string, unknown>
+  ) {
+    db.update(pipelineSteps)
+      .set({ inputSummary } as any)
+      .where(
+        and(
+          eq(pipelineSteps.draftId, draftId),
+          eq(pipelineSteps.stepNumber, stepNumber)
+        )
+      )
+      .run()
+  },
+
+  complete(
+    db: BetterSQLite3Database,
+    draftId: number,
+    stepNumber: number,
+    data: {
+      outputData?: Record<string, unknown>
+      inputSummary?: Record<string, unknown>
+      tokensUsed?: number
+      durationMs?: number
+      modelUsed?: string
+    }
+  ) {
+    db.update(pipelineSteps)
+      .set({
+        status: 'completed',
+        outputData: data.outputData ?? null,
+        inputSummary: data.inputSummary ?? null,
+        tokensUsed: data.tokensUsed ?? null,
+        durationMs: data.durationMs ?? null,
+        modelUsed: data.modelUsed ?? null,
+        completedAt: now(),
+      })
+      .where(
+        and(
+          eq(pipelineSteps.draftId, draftId),
+          eq(pipelineSteps.stepNumber, stepNumber)
+        )
+      )
+      .run()
+  },
+
+  fail(
+    db: BetterSQLite3Database,
+    draftId: number,
+    stepNumber: number,
+    errorMessage: string,
+    durationMs?: number
+  ) {
+    db.update(pipelineSteps)
+      .set({
+        status: 'failed',
+        errorMessage,
+        durationMs: durationMs ?? null,
+        completedAt: now(),
+      })
+      .where(
+        and(
+          eq(pipelineSteps.draftId, draftId),
+          eq(pipelineSteps.stepNumber, stepNumber)
+        )
+      )
+      .run()
+  },
+
+  deleteByDraft(db: BetterSQLite3Database, draftId: number) {
+    db.delete(pipelineSteps).where(eq(pipelineSteps.draftId, draftId)).run()
   },
 }
 
