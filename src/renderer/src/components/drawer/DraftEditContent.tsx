@@ -9,6 +9,7 @@ import {
 } from '../../hooks/queries'
 import { MarkdownPreview } from '../ui/MarkdownPreview'
 import { PipelineProgress } from '../ui/PipelineProgress'
+import { ScoreBadge } from '../ui/ScoreBadge'
 import { useToast } from '../ui/Toast'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 
@@ -188,6 +189,7 @@ export function DraftEditContent({ draftId, onClose }: DraftEditContentProps): R
           onChange={(e) => setTitle(e.target.value)}
           className="flex-1 rounded bg-transparent px-1 text-xl font-bold text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--ring)]"
         />
+        <ScoreBadge score={draft.qcScore} size="md" />
         <button
           type="button"
           onClick={handleCopyToClipboard}

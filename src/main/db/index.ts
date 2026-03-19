@@ -151,6 +151,9 @@ function createTables(db: BetterSQLite3Database): void {
   try {
     db.run(sql`ALTER TABLE drafts ADD COLUMN generation_strategy TEXT`)
   } catch { /* column already exists */ }
+  try {
+    db.run(sql`ALTER TABLE drafts ADD COLUMN qc_score INTEGER`)
+  } catch { /* column already exists */ }
 }
 
 /**

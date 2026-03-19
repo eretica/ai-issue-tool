@@ -254,7 +254,8 @@ export async function runPipeline(
         body: retryGenerated.body,
         status: 'ai_generated',
         aiModel: `pipeline (${classification.complexity})`,
-      })
+        qcScore: qcResult.score,
+      } as any)
     } else {
       // Update draft with final result
       draftQueries.update(db, draftId, {
@@ -262,7 +263,8 @@ export async function runPipeline(
         body: finalBody,
         status: 'ai_generated',
         aiModel: `pipeline (${classification.complexity})`,
-      })
+        qcScore: qcResult.score,
+      } as any)
     }
   } catch (err) {
     if (signal.aborted) {

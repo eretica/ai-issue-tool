@@ -71,6 +71,7 @@ export interface Draft {
   pipelineCurrentStep: number | null
   pipelineTotalSteps: number | null
   generationStrategy: 'pipeline' | 'simple' | 'external_agent' | null
+  qcScore: number | null
   createdAt: string
   updatedAt: string
 }

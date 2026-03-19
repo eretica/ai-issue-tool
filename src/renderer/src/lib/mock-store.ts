@@ -220,6 +220,7 @@ export const mockStore = {
         pipelineCurrentStep: null,
         pipelineTotalSteps: null,
         generationStrategy: null,
+        qcScore: null,
         createdAt: now(),
         updatedAt: now(),
       }

@@ -77,6 +77,7 @@ export const drafts = sqliteTable('drafts', {
   pipelineCurrentStep: integer('pipeline_current_step'),
   pipelineTotalSteps: integer('pipeline_total_steps').default(5),
   generationStrategy: text('generation_strategy'),
+  qcScore: integer('qc_score'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

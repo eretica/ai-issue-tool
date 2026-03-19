@@ -2,6 +2,7 @@ import { Link, useParams } from '@tanstack/react-router'
 import type { Draft } from '@shared/types'
 import { statusBadgeStyles, statusLabels } from './kanban-constants'
 import { formatRelativeDate } from '../../lib/draft-utils'
+import { ScoreBadge } from '../ui/ScoreBadge'
 
 interface KanbanCardProps {
   draft: Draft
@@ -42,6 +43,7 @@ export function KanbanCard({ draft, onClick }: KanbanCardProps): React.JSX.Eleme
           )}
           {statusLabels[draft.status]}
         </span>
+        <ScoreBadge score={draft.qcScore} size="sm" />
       </div>
 
       {/* Pipeline progress bar for investigating status */}
