@@ -40,7 +40,7 @@ export function DraftEditContent({ draftId, onClose }: DraftEditContentProps): R
 
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  const [confirmAction, setConfirmAction] = useState<'delete' | 'publish' | null>(null)
+  const [confirmAction, setConfirmAction] = useState<'delete' | 'publish' | 'complete_unpublished' | null>(null)
 
   // Track saved state for dirty detection
   const savedTitle = useRef('')
@@ -137,6 +137,21 @@ export function DraftEditContent({ draftId, onClose }: DraftEditContentProps): R
     })
   }
 
+  const handleCompleteUnpublished = () => {
+    setConfirmAction(null)
+    updateDraft.mutate(
+      { id: draftId, data: { status: 'completed_unpublished' } },
+      {
+        onSuccess: () => {
+          savedTitle.current = title
+          savedBody.current = body
+          toast('完了（未公開）にしました')
+          onClose()
+        },
+      }
+    )
+  }
+
   const handleDelete = () => {
     setConfirmAction(null)
     deleteDraft.mutate(draftId, {
@@ -206,7 +221,7 @@ export function DraftEditContent({ draftId, onClose }: DraftEditContentProps): R
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-[var(--background)]/80 backdrop-blur-sm">
             <div className="flex w-full max-w-md flex-col items-center gap-4 p-6">
               <span className="text-sm font-medium text-[var(--foreground)]">AI調査パイプライン実行中</span>
-              <PipelineProgress draftId={draftId} />
+              <PipelineProgress draftId={draftId} draftTitle={draft.title} />
               <span className="text-xs text-[var(--muted-foreground)]">完了すると自動的に表示されます</span>
             </div>
           </div>
@@ -292,14 +307,26 @@ export function DraftEditContent({ draftId, onClose }: DraftEditContentProps): R
           >
             {aiGenerate.isPending ? 'AI生成中...' : 'AIリライト'}
           </button>
-          <button
-            type="button"
-            disabled={isMutating}
-            onClick={() => setConfirmAction('publish')}
-            className="rounded-md bg-[var(--primary)] px-4 py-2 text-sm text-[var(--primary-foreground)] transition-colors hover:brightness-110 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {publishDraft.isPending ? '公開中...' : '公開'}
-          </button>
+          {(draft.status === 'ai_generated' || draft.status === 'reviewed') && (
+            <button
+              type="button"
+              disabled={isMutating}
+              onClick={() => setConfirmAction('complete_unpublished')}
+              className="rounded-md border border-teal-300 bg-teal-50 px-4 py-2 text-sm text-teal-700 transition-colors hover:bg-teal-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              完了（未公開）
+            </button>
+          )}
+          {draft.status !== 'completed_unpublished' && (
+            <button
+              type="button"
+              disabled={isMutating}
+              onClick={() => setConfirmAction('publish')}
+              className="rounded-md bg-[var(--primary)] px-4 py-2 text-sm text-[var(--primary-foreground)] transition-colors hover:brightness-110 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {publishDraft.isPending ? '公開中...' : '公開'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -311,6 +338,14 @@ export function DraftEditContent({ draftId, onClose }: DraftEditContentProps): R
         confirmLabel="削除する"
         variant="danger"
         onConfirm={handleDelete}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === 'complete_unpublished'}
+        title="完了（未公開）にしますか？"
+        description="GitHubには公開せず、完了としてクローズします。後から公開に変更することもできます。"
+        confirmLabel="完了にする"
+        onConfirm={handleCompleteUnpublished}
         onCancel={() => setConfirmAction(null)}
       />
       <ConfirmDialog

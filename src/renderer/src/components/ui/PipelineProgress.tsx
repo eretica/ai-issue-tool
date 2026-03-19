@@ -61,10 +61,11 @@ function formatDuration(ms: number | null): string {
 
 interface PipelineProgressProps {
   draftId: number
+  draftTitle?: string
   compact?: boolean
 }
 
-export function PipelineProgress({ draftId, compact = false }: PipelineProgressProps): React.JSX.Element | null {
+export function PipelineProgress({ draftId, draftTitle, compact = false }: PipelineProgressProps): React.JSX.Element | null {
   const { data: steps } = usePipelineSteps(draftId)
   const cancelPipeline = useCancelPipeline()
   const [elapsed, setElapsed] = useState(0)
@@ -91,27 +92,40 @@ export function PipelineProgress({ draftId, compact = false }: PipelineProgressP
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-amber-700">
-          AI調査中 {completedCount}/{totalSteps}
-        </span>
-        <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200">
-          <div
-            className="h-full rounded-full bg-amber-500 transition-all duration-500"
-            style={{ width: `${(completedCount / totalSteps) * 100}%` }}
-          />
-        </div>
-        {runningStep && (
-          <span className="text-xs text-[var(--muted-foreground)]">
-            {STEP_DESCRIPTIONS[runningStep.stepName as PipelineStepName]}
+      <div className="flex flex-col gap-1">
+        {draftTitle && (
+          <span className="truncate text-xs font-medium text-[var(--foreground)]">
+            {draftTitle}
           </span>
         )}
+        <div className="flex items-center gap-2">
+          <span className="shrink-0 text-xs font-medium text-amber-700">
+            AI調査中 {completedCount}/{totalSteps}
+          </span>
+          <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200">
+            <div
+              className="h-full rounded-full bg-amber-500 transition-all duration-500"
+              style={{ width: `${(completedCount / totalSteps) * 100}%` }}
+            />
+          </div>
+          {runningStep && (
+            <span className="shrink-0 text-xs text-[var(--muted-foreground)]">
+              {STEP_DESCRIPTIONS[runningStep.stepName as PipelineStepName]}
+            </span>
+          )}
+        </div>
       </div>
     )
   }
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+      {/* Draft title */}
+      {draftTitle && (
+        <div className="mb-3 truncate text-sm font-medium text-[var(--foreground)]">
+          {draftTitle}
+        </div>
+      )}
       {/* Step indicators */}
       <div className="mb-3 flex items-center justify-between">
         {steps.map((step, i) => (

@@ -3,7 +3,7 @@ import type { DraftStatus } from '@shared/types'
 export const KANBAN_COLUMNS = [
   { id: 'wip', title: '作業中', statuses: ['draft', 'generating', 'investigating'] as DraftStatus[] },
   { id: 'review', title: '確認待ち', statuses: ['ai_generated', 'reviewed'] as DraftStatus[] },
-  { id: 'done', title: '公開済み', statuses: ['published', 'archived'] as DraftStatus[] },
+  { id: 'done', title: '完了', statuses: ['published', 'completed_unpublished', 'archived'] as DraftStatus[] },
 ] as const
 
 export const statusBadgeStyles: Record<DraftStatus, string> = {
@@ -14,6 +14,7 @@ export const statusBadgeStyles: Record<DraftStatus, string> = {
   reviewed: 'bg-green-100 text-green-700',
   published: 'bg-purple-100 text-purple-700',
   archived: 'bg-[var(--muted)] text-[var(--muted-foreground)]',
+  completed_unpublished: 'bg-teal-100 text-teal-700',
 }
 
 export const statusLabels: Record<DraftStatus, string> = {
@@ -24,6 +25,7 @@ export const statusLabels: Record<DraftStatus, string> = {
   reviewed: 'レビュー済み',
   published: '公開済み',
   archived: 'アーカイブ',
+  completed_unpublished: '完了（未公開）',
 }
 
 export function getColumnForStatus(status: DraftStatus): string {

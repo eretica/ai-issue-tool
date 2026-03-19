@@ -46,7 +46,7 @@ export interface Template {
   updatedAt: string
 }
 
-export type DraftStatus = 'draft' | 'generating' | 'investigating' | 'ai_generated' | 'reviewed' | 'published' | 'archived'
+export type DraftStatus = 'draft' | 'generating' | 'investigating' | 'ai_generated' | 'reviewed' | 'published' | 'archived' | 'completed_unpublished'
 
 export interface Draft {
   id: number
